@@ -1,7 +1,4 @@
 import os
-import logging
-from datetime import datetime
-import re
 from dotenv import load_dotenv
 import torch
 from transformers import (
@@ -15,44 +12,17 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from datasets import load_dataset
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+from src.helper import (
+    validate_sql,
+    preprocess_query,
+    clean_sql_output,
+    log_training_metrics,
+    timestamp,
+    get_logger
 )
-logger = logging.getLogger(__name__)
 
-def timestamp():
-    """Generate timestamp for logging"""
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
-
-def validate_sql(sql: str) -> tuple[bool, str]:
-    """
-    Basic SQL validation
-    Returns: (is_valid, message)
-    """
-    if not sql.strip():
-        return False, "Empty SQL query"
-    
-    # Check for basic SQL structure
-    if not re.search(r'SELECT.*FROM', sql, re.IGNORECASE):
-        return False, "Missing SELECT...FROM"
-    
-    return True, "Valid SQL"
-
-def preprocess_query(query: str) -> str:
-    """Clean and normalize natural language query"""
-    query = query.strip()
-    query = re.sub(r'\s+', ' ', query)
-    return query
-
-def clean_sql_output(sql: str) -> str:
-    """Clean and format SQL query"""
-    sql = sql.strip()
-    sql = re.sub(r'\s+', ' ', sql)
-    if not sql.endswith(';'):
-        sql += ';'
-    return sql
+# Get logger instance
+logger = get_logger(__name__)
 
 class SQLModelTrainer:
     """Handles model setup and training for SQL generation"""
@@ -65,15 +35,8 @@ class SQLModelTrainer:
         self.model_name = "codellama/CodeLlama-7b-Instruct-hf"
         self.output_dir = f"sql_trained_model_{timestamp()}"
         self.max_length = 512
-        
-        # Check for GPU
-        if not torch.cuda.is_available():
-            raise RuntimeError("GPU required - CUDA not available")
-            
-        # Get Hugging Face token
+
         self.hf_token = os.getenv("HUGGINGFACE_TOKEN")
-        if not self.hf_token:
-            raise ValueError("Add HUGGINGFACE_TOKEN to .env file")
         
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
@@ -127,6 +90,8 @@ class SQLModelTrainer:
             )
             
             self.model = get_peft_model(self.model, self.lora_config)
+            
+            # Log trainable parameters
             self.model.print_trainable_parameters()
             logger.info("Model setup successful")
 
@@ -155,12 +120,13 @@ class SQLModelTrainer:
                 processed_inputs = []
                 
                 for nl, sql in zip(examples['natural_language'], examples['sql_query']):
-                    # Validate SQL
+                    # Validate SQL structure
                     is_valid, msg = validate_sql(sql)
                     if not is_valid:
                         logger.warning(f"Skipping invalid SQL: {msg}")
                         continue
                     
+                    # Process and format the example
                     processed_inputs.append(
                         prompt_template.format(
                             natural_language=preprocess_query(nl),
@@ -189,7 +155,12 @@ class SQLModelTrainer:
                 num_proc=4
             )
             
-            logger.info(f"Processed {len(processed_dataset['train'])} training examples")
+            # Log processing metrics
+            log_training_metrics({
+                "total_examples": len(processed_dataset['train']),
+                "validation_examples": len(processed_dataset['test'])
+            }, prefix="data_processing")
+            
             return processed_dataset
             
         except Exception as e:
