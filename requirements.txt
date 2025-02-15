@@ -6,4 +6,4 @@ peft
 datasets 
 python-dotenv
 -e .
-wandb
+tensorboard
