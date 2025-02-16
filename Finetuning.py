@@ -25,7 +25,7 @@ from src.helper import (
 logger = get_logger(__name__)
 
 class SQLModelTrainer:
-    """Optimized for Mistral-7B SQL Generation"""
+    """Optimized for Mistral-7B SQL Generation (training mode)"""
 
     def __init__(self):
         load_dotenv()
@@ -37,22 +37,18 @@ class SQLModelTrainer:
         self.hf_token = os.getenv("HUGGINGFACE_TOKEN")
         
         os.makedirs(self.output_dir, exist_ok=True)
-        # Create an offload folder inside the output directory for disk offloading if necessary
-        self.offload_folder = os.path.join(self.output_dir, "offload")
-        os.makedirs(self.offload_folder, exist_ok=True)
-        
         self._setup_model()
 
     def _setup_model(self):
-        """Mistral-specific setup with 4-bit quantization and offload configuration"""
+        """Mistral-specific setup with 4-bit quantization for training (entire model on GPU)"""
         try:
-            # 4-bit Quantization Config: note that llm_int8_enable_fp32_cpu_offload is now set here
+            # 4-bit Quantization Config.
             self.quant_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
-                llm_int8_enable_fp32_cpu_offload=True
+                llm_int8_enable_fp32_cpu_offload=False  # Offloading disabled for training.
             )
             
             # Tokenizer setup
@@ -64,28 +60,26 @@ class SQLModelTrainer:
             )
             self.tokenizer.pad_token = self.tokenizer.eos_token
             
-            # Custom device map: offload lm_head to CPU while keeping the rest on GPU.
-            device_map = {"": "cuda:0", "lm_head": "cpu"}
+            # Use current GPU device so that the model is loaded on the same device as training.
+            device_map = {"": torch.cuda.current_device()}
             
-            # Model Loading with quantization config and offload settings.
-            # Do not pass llm_int8_enable_fp32_cpu_offload here; it's already part of self.quant_config.
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 token=self.hf_token,
                 quantization_config=self.quant_config,
                 device_map=device_map,
-                torch_dtype=torch.float16,
-                offload_folder=self.offload_folder
+                torch_dtype=torch.float16
+                # Note: offload_folder is omitted since no offloading is desired.
             )
             
-            # Enable gradient checkpointing for memory efficiency
+            # Enable gradient checkpointing for memory efficiency.
             self.model.gradient_checkpointing_enable()
             self.model = prepare_model_for_kbit_training(self.model)
             
-            # Memory-efficient LoRA Config
+            # Memory-efficient LoRA Config for fine-tuning.
             self.lora_config = LoraConfig(
-                r=8,  # Reduced from 16 to save memory
-                lora_alpha=16,  # Reduced from 32
+                r=8,             # Reduced to save memory.
+                lora_alpha=16,   # Reduced for memory efficiency.
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
                 lora_dropout=0.05,
                 task_type="CAUSAL_LM",
@@ -94,7 +88,7 @@ class SQLModelTrainer:
             
             self.model = get_peft_model(self.model, self.lora_config)
             self.model.print_trainable_parameters()
-            logger.info("Mistral model loaded successfully with 4-bit quantization and CPU offload configuration")
+            logger.info("Mistral model loaded successfully for training (4-bit quantization, loaded on current GPU)")
 
         except Exception as e:
             logger.error(f"Model setup failed: {str(e)}")
@@ -125,7 +119,6 @@ class SQLModelTrainer:
                 tokenized["labels"] = tokenized["input_ids"].copy()
                 return tokenized
 
-            # Process examples one at a time for each split
             processed_dataset = {}
             for split in ['train', 'test']:
                 processed_examples = []
@@ -137,30 +130,29 @@ class SQLModelTrainer:
                 if not processed_examples:
                     raise ValueError(f"No valid examples found in the {split} set.")
                 
-                # Reconstruct the dataset from processed examples
                 processed_dataset[split] = {
-                    key: [example[key] for example in processed_examples]
+                    key: [ex[key] for ex in processed_examples]
                     for key in processed_examples[0].keys()
                 }
                 processed_dataset[split] = dataset[split].from_dict(processed_dataset[split])
                 logger.info(f"Processed {len(processed_dataset[split])} examples for {split} set")
 
             return processed_dataset
-            
+
         except Exception as e:
             logger.error(f"Data processing failed: {str(e)}")
             raise
 
     def execute_training(self, train_data, val_data):
-        """Training process with memory optimizations and a reduced batch size"""
+        """Training process with memory optimizations and reduced batch size"""
         try:
             training_args = TrainingArguments(
                 output_dir=self.output_dir,
-                per_device_train_batch_size=1,  # Reduced batch size to lower memory usage
+                per_device_train_batch_size=1,  # Reduced batch size for memory constraints.
                 per_device_eval_batch_size=1,
                 num_train_epochs=10,
                 learning_rate=1e-4,
-                gradient_accumulation_steps=8,  # Increase accumulation steps to simulate a larger batch
+                gradient_accumulation_steps=8,  # Simulate a larger effective batch size.
                 fp16=True,
                 optim="paged_adamw_8bit",
                 logging_steps=10,
@@ -170,9 +162,9 @@ class SQLModelTrainer:
                 save_steps=50,
                 report_to="tensorboard",
                 remove_unused_columns=False,
-                gradient_checkpointing=True,    # Further reduce memory footprint
-                max_grad_norm=0.3,              # Gradient clipping to stabilize training
-                warmup_ratio=0.03               # Learning rate warmup
+                gradient_checkpointing=True,
+                max_grad_norm=0.3,
+                warmup_ratio=0.03
             )
 
             trainer = Trainer(
