@@ -12,6 +12,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def format_mistral_prompt(natural_language: str, sql_query: str) -> str:
+    """
+    Args:
+        natural_language: Natural language query
+        sql_query: Corresponding SQL query
+    Returns:
+        Formatted prompt string for Mistral model
+    """
+    return (
+        f"<s>[INST] Generate SQL query for: {natural_language} [/INST]"
+        f"\n{sql_query}</s>"
+    )
+
 class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path

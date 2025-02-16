@@ -18,149 +18,133 @@ from src.helper import (
     clean_sql_output,
     log_training_metrics,
     timestamp,
-    get_logger
+    get_logger,
+    format_mistral_prompt
 )
 
-# Get logger instance
 logger = get_logger(__name__)
 
 class SQLModelTrainer:
-    """Handles model setup and training for SQL generation"""
-    
+    """Optimized for Mistral-7B SQL Generation"""
+
     def __init__(self):
-        # Load environment variables
         load_dotenv()
         
         # Configuration
-        self.model_name = "codellama/CodeLlama-7b-Instruct-hf"
-        self.output_dir = f"sql_trained_model_{timestamp()}"
+        self.model_name = "mistralai/Mistral-7B-Instruct-v0.2"
+        self.output_dir = f"mistral_sql_{timestamp()}"
         self.max_length = 512
-
         self.hf_token = os.getenv("HUGGINGFACE_TOKEN")
         
-        # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
+        # Create an offload folder inside the output directory for disk offloading if necessary
+        self.offload_folder = os.path.join(self.output_dir, "offload")
+        os.makedirs(self.offload_folder, exist_ok=True)
         
-        # Initialize components
-        self._setup_model_components()
+        self._setup_model()
 
-    def _setup_model_components(self):
-        """Configures model with proper quantization"""
+    def _setup_model(self):
+        """Mistral-specific setup with 4-bit quantization and offload configuration"""
         try:
-            # 1. Configure 4-bit quantization
+            # 4-bit Quantization Config: note that llm_int8_enable_fp32_cpu_offload is now set here
             self.quant_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True
+                bnb_4bit_use_double_quant=True,
+                llm_int8_enable_fp32_cpu_offload=True
             )
             
-            # 2. Initialize tokenizer
+            # Tokenizer setup
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_name,
                 token=self.hf_token,
                 padding_side="left",
                 truncation_side="left"
             )
+            self.tokenizer.pad_token = self.tokenizer.eos_token
             
-            # Set padding token if not set
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
+            # Custom device map: offload lm_head to CPU while keeping the rest on GPU.
+            device_map = {"": "cuda:0", "lm_head": "cpu"}
             
-            # 3. Load model with quantization
+            # Model Loading with quantization config and offload settings.
+            # Do not pass llm_int8_enable_fp32_cpu_offload here; it's already part of self.quant_config.
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 token=self.hf_token,
                 quantization_config=self.quant_config,
-                device_map="auto",
-                torch_dtype=torch.float16
+                device_map=device_map,
+                torch_dtype=torch.float16,
+                offload_folder=self.offload_folder
             )
             
-            # 4. Prepare for PEFT training
+            # Enable gradient checkpointing for memory efficiency
+            self.model.gradient_checkpointing_enable()
             self.model = prepare_model_for_kbit_training(self.model)
             
-            # 5. Configure LoRA
+            # Memory-efficient LoRA Config
             self.lora_config = LoraConfig(
-                r=16,
-                lora_alpha=32,
+                r=8,  # Reduced from 16 to save memory
+                lora_alpha=16,  # Reduced from 32
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
                 lora_dropout=0.05,
-                bias="none",
-                task_type="CAUSAL_LM"
+                task_type="CAUSAL_LM",
+                inference_mode=False
             )
             
             self.model = get_peft_model(self.model, self.lora_config)
-            
-            # Log trainable parameters
             self.model.print_trainable_parameters()
-            logger.info("Model setup successful")
+            logger.info("Mistral model loaded successfully with 4-bit quantization and CPU offload configuration")
 
         except Exception as e:
             logger.error(f"Model setup failed: {str(e)}")
             raise
 
     def prepare_training_data(self, data_path: str):
-        """Processes and formats training data"""
+        """Mistral-optimized data processing"""
         try:
-            # Load dataset
             dataset = load_dataset('csv', data_files={'train': data_path})
-            dataset = dataset['train'].train_test_split(test_size=0.1, seed=42)
-            
-            # Training template
-            prompt_template = (
-                "[INST] <<SYS>>\n"
-                "Generate SQL query for this request\n"
-                "<</SYS>>\n\n"
-                "{natural_language}\n[/INST]\n"
-                "{sql_query}"
-            )
+            dataset = dataset['train'].train_test_split(test_size=0.1)
 
-            def format_example(examples):
-                """Formats individual training examples"""
-                processed_inputs = []
+            def format_example(example):
+                if not validate_sql(example['sql_query'])[0]:
+                    return None
                 
-                for nl, sql in zip(examples['natural_language'], examples['sql_query']):
-                    # Validate SQL structure
-                    is_valid, msg = validate_sql(sql)
-                    if not is_valid:
-                        logger.warning(f"Skipping invalid SQL: {msg}")
-                        continue
-                    
-                    # Process and format the example
-                    processed_inputs.append(
-                        prompt_template.format(
-                            natural_language=preprocess_query(nl),
-                            sql_query=clean_sql_output(sql)
-                        )
-                    )
+                processed = format_mistral_prompt(
+                    preprocess_query(example['natural_language']),
+                    clean_sql_output(example['sql_query'])
+                )
                 
-                # Tokenize inputs
                 tokenized = self.tokenizer(
-                    processed_inputs,
+                    processed,
                     max_length=self.max_length,
                     truncation=True,
                     padding="max_length",
                     return_tensors=None
                 )
-                
-                # Create labels
                 tokenized["labels"] = tokenized["input_ids"].copy()
                 return tokenized
 
-            # Process dataset
-            processed_dataset = dataset.map(
-                format_example,
-                batched=True,
-                remove_columns=dataset['train'].column_names,
-                num_proc=4
-            )
-            
-            # Log processing metrics
-            log_training_metrics({
-                "total_examples": len(processed_dataset['train']),
-                "validation_examples": len(processed_dataset['test'])
-            }, prefix="data_processing")
-            
+            # Process examples one at a time for each split
+            processed_dataset = {}
+            for split in ['train', 'test']:
+                processed_examples = []
+                for example in dataset[split]:
+                    result = format_example(example)
+                    if result is not None:
+                        processed_examples.append(result)
+                
+                if not processed_examples:
+                    raise ValueError(f"No valid examples found in the {split} set.")
+                
+                # Reconstruct the dataset from processed examples
+                processed_dataset[split] = {
+                    key: [example[key] for example in processed_examples]
+                    for key in processed_examples[0].keys()
+                }
+                processed_dataset[split] = dataset[split].from_dict(processed_dataset[split])
+                logger.info(f"Processed {len(processed_dataset[split])} examples for {split} set")
+
             return processed_dataset
             
         except Exception as e:
@@ -168,20 +152,15 @@ class SQLModelTrainer:
             raise
 
     def execute_training(self, train_data, val_data):
-        """Manages the training process"""
+        """Training process with memory optimizations and a reduced batch size"""
         try:
-            # Create logging directory
-            log_dir = os.path.join(self.output_dir, "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            
-            # Training configuration
             training_args = TrainingArguments(
                 output_dir=self.output_dir,
-                per_device_train_batch_size=4,
-                per_device_eval_batch_size=4,
+                per_device_train_batch_size=1,  # Reduced batch size to lower memory usage
+                per_device_eval_batch_size=1,
                 num_train_epochs=10,
                 learning_rate=1e-4,
-                gradient_accumulation_steps=4,
+                gradient_accumulation_steps=8,  # Increase accumulation steps to simulate a larger batch
                 fp16=True,
                 optim="paged_adamw_8bit",
                 logging_steps=10,
@@ -189,13 +168,13 @@ class SQLModelTrainer:
                 eval_steps=50,
                 save_strategy="steps",
                 save_steps=50,
-                load_best_model_at_end=True,
-                logging_dir=log_dir,
                 report_to="tensorboard",
-                remove_unused_columns=False
+                remove_unused_columns=False,
+                gradient_checkpointing=True,    # Further reduce memory footprint
+                max_grad_norm=0.3,              # Gradient clipping to stabilize training
+                warmup_ratio=0.03               # Learning rate warmup
             )
 
-            # Initialize trainer
             trainer = Trainer(
                 model=self.model,
                 args=training_args,
@@ -204,36 +183,24 @@ class SQLModelTrainer:
                 data_collator=DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
             )
 
-            # Start training
             logger.info(f"Training started at {timestamp()}")
             trainer.train()
             
-            # Save model
             save_path = os.path.join(self.output_dir, "final_model")
             self.model.save_pretrained(save_path)
-            self.tokenizer.save_pretrained(save_path)
-            
-            logger.info(f"Training complete! Model saved to {save_path}")
+            logger.info(f"Model saved to {save_path}")
 
         except Exception as e:
             logger.error(f"Training failed: {str(e)}")
             raise
 
 def main():
-    """Main execution flow"""
     try:
-        # Initialize trainer
         trainer = SQLModelTrainer()
-        
-        # Prepare data
         dataset = trainer.prepare_training_data("nl_sql_dataset.csv")
-        
-        # Execute training
         trainer.execute_training(dataset['train'], dataset['test'])
-        
     except Exception as e:
-        logger.error(f"Program error: {str(e)}")
-        raise
+        logger.error(f"Fatal error: {str(e)}")
 
 if __name__ == "__main__":
     main()
