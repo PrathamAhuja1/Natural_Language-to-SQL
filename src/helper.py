@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import re
 import logging
@@ -5,25 +6,28 @@ from typing import Dict, List, Optional, Tuple, Union
 from contextlib import contextmanager
 from datetime import datetime
 
-# Configure logging
+# Ensure the logs folder exists
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Configure logging to output to a file in the logs folder
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename=os.path.join(log_dir, "app.log"),
+    filemode='a'  # Append mode
 )
 logger = logging.getLogger(__name__)
 
-def format_mistral_prompt(natural_language: str, sql_query: str) -> str:
+def format_t5_prompt(natural_language: str, sql_query: Optional[str] = None) -> str:
     """
-    Args:
-        natural_language: Natural language query
-        sql_query: Corresponding SQL query
-    Returns:
-        Formatted prompt string for Mistral model
+    Format prompt for T5 model fine-tuning for Text-to-SQL conversion.
+    The input is prefixed with:
+        "translate English to SQL: <natural_language>"
+    During training, the model is expected to generate the SQL query as output.
     """
-    return (
-        f"<s>[INST] Generate SQL query for: {natural_language} [/INST]"
-        f"\n{sql_query}</s>"
-    )
+    return f"translate English to SQL: {natural_language.strip()}"
 
 class DatabaseManager:
     def __init__(self, db_path: str):
