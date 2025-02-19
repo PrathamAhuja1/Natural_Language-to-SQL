@@ -16,10 +16,9 @@ from src.helper import (
     validate_sql,
     preprocess_query,
     clean_sql_output,
-    log_training_metrics,
     timestamp,
     get_logger,
-    format_t5_prompt  # new prompt formatting for T5
+    format_t5_prompt
 )
 
 logger = get_logger(__name__)
@@ -29,10 +28,8 @@ class SQLModelTrainer:
 
     def __init__(self):
         load_dotenv()
-        # Use T5-Large for better accuracy
         self.model_name = "t5-large"
         self.output_dir = f"t5_sql_{timestamp()}"
-        # For T5, we use a moderate max length (adjust as needed)
         self.max_length = 256
         self.hf_token = os.getenv("HUGGINGFACE_TOKEN")
         os.makedirs(self.output_dir, exist_ok=True)
@@ -149,7 +146,7 @@ class SQLModelTrainer:
             torch.backends.cudnn.benchmark = True
             training_args = TrainingArguments(
                 output_dir=self.output_dir,
-                per_device_train_batch_size=1,   # Adjust according to VRAM; use gradient accumulation to simulate larger batch size
+                per_device_train_batch_size=1,
                 per_device_eval_batch_size=1,
                 num_train_epochs=10,
                 learning_rate=1e-4,
@@ -178,7 +175,7 @@ class SQLModelTrainer:
             )
             logger.info(f"Training started at {timestamp()}")
             trainer.train()
-            save_path = os.path.join(self.output_dir, "final_model")
+            save_path =  "final_model"
             self.model.save_pretrained(save_path)
             logger.info(f"Model saved to {save_path}")
         except Exception as e:
