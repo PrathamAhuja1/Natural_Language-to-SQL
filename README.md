@@ -1,34 +1,47 @@
-# Natural Language to SQL Converter
+# 🔄 Natural Language to SQL Converter
+> Transform Natural Language into SQL queries with the power of LLMs! 🚀
 
-This project demonstrates a full pipeline for converting natural language queries into SQL queries using a fine-tuned T5-Large model with LoRA. It includes scripts for model fine-tuning, synthetic data generation, and a Streamlit web UI for real-time inference.
+This project showcases a complete pipeline for converting natural language queries into SQL using a fine-tuned T5-Large model with LoRA. Built with simplicity and efficiency in mind, it features a user-friendly Streamlit interface for real-time query conversion.
 
-## Project Overview
+## ✨ Project Overview
 
-- **Model Fine-Tuning:** The T5-Large model is fine-tuned on a custom Text-to-SQL dataset using LoRA for efficient parameter adaptation.
-- **Data Generation:** The `data_generation.py` script generates synthetic training data in CSV format.
-- **Helper Utilities:** The `helper.py` file contains utility functions for data preprocessing, logging, and prompt formatting.
-- **Streamlit UI:** The `app.py` file provides an interactive web interface where users can input a natural language query and obtain the corresponding SQL query.
-- **Logging:** All logs are stored in the `logs/` folder for easy debugging and monitoring.
-- **Resume Capability:** Checkpoint saving and resuming functionality can be added as needed.
+🤖 **Model Fine-Tuning**
+- T5-Large model fine-tuned on a custom Text-to-SQL dataset
+- LoRA implementation for efficient parameter adaptation
+- Optimized for accuracy and performance
 
-## Repository Structure
+📊 **Key Components**
+- **Data Generation:** Synthetic training data creation via `data_generation.py`
+- **Helper Utilities:** Robust preprocessing and logging in `helper.py`
+- **Interactive UI:** Sleek Streamlit interface in `app.py`
+- **Comprehensive Logging:** Detailed logs for debugging and monitoring
+- **Checkpoint System:** Ready for resume capability implementation
 
+## 📁 Repository Structure
 ```bash
 Natural_Language-to-SQL/
-├── app.py
-├── requirements.txt
-├── final_model
+├── app.py                 # Streamlit web application
+├── requirements.txt       # Project dependencies
+├── final_model           # Trained model directory
 ├── src/
 │   ├── __init__.py
-│   ├── helper.py
-├── CUDA_check.py
-│──Finetuning.py
-│──data_generation.py
-├──nl_sql_dataset.csv
-├──setup.py
+│   ├── helper.py         # Utility functions
+├── CUDA_check.py         # GPU compatibility check
+├── Finetuning.py        # Model training script
+├── data_generation.py    # Training data generator
+├── nl_sql_dataset.csv    # Dataset file
+├── setup.py             # Project setup script
 ```
 
-## Running the model in your local system
+## 🌟 Features
+
+- 💡 Intuitive natural language processing
+- ⚡ Fast and efficient query conversion
+- 🎯 High accuracy with T5-Large model
+- 📱 User-friendly web interface
+- 📊 Comprehensive logging system
+
+## 🚀 Quick Start Guide
 
 ```bash
 git clone https://github.com/PrathamAhuja1/Natural_Language-to-SQL.git
