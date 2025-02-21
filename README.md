@@ -31,7 +31,8 @@ Natural_Language-to-SQL/
 ## Running the model in your local system
 
 ```bash
-git clone https://github.com/yourusername/nl-to-sql-converter.git
-cd nl-to-sql-converter
+git clone https://github.com/PrathamAhuja1/Natural_Language-to-SQL.git
+cd Natural_Language-to-SQL
 pip install -r requirements.txt
+streamlit run app.py
 ```
