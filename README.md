@@ -20,17 +20,17 @@ This project showcases a complete pipeline for converting natural language queri
 ## 📁 Repository Structure
 ```bash
 Natural_Language-to-SQL/
-├── app.py                 # Streamlit web application
-├── requirements.txt       # Project dependencies
-├── final_model           # Trained model directory
+├── app.py               
+├── requirements.txt     
+├── final_model         
 ├── src/
 │   ├── __init__.py
-│   ├── helper.py         # Utility functions
-├── CUDA_check.py         # GPU compatibility check
-├── Finetuning.py        # Model training script
-├── data_generation.py    # Training data generator
-├── nl_sql_dataset.csv    # Dataset file
-├── setup.py             # Project setup script
+│   ├── helper.py     
+├── CUDA_check.py     
+├── Finetuning.py       
+├── data_generation.py  
+├── nl_sql_dataset.csv  
+├── setup.py         
 ```
 
 ## 🌟 Features
