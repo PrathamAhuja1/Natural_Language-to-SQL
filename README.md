@@ -26,6 +26,12 @@ Natural_Language-to-SQL/
 │──data_generation.py
 ├──nl_sql_dataset.csv
 ├──setup.py
-└── templates/
-    └── chat.html
+```
+
+## Running the model in your local system
+
+```bash
+git clone https://github.com/yourusername/nl-to-sql-converter.git
+cd nl-to-sql-converter
+pip install -r requirements.txt
 ```
