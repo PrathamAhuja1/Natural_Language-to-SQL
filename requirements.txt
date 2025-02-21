@@ -7,4 +7,3 @@ datasets
 python-dotenv
 -e .
 tensorboard
-sqlparse
