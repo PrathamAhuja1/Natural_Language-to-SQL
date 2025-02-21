@@ -87,7 +87,6 @@ def main():
     # Input text area for natural language query
     natural_query = st.text_area(
         "Enter your question:",
-        placeholder="Example: Show me all customers from New York who made purchases last month",
         height=100
     )
     
@@ -101,15 +100,6 @@ def main():
                     # Display the result
                     st.subheader("Generated SQL Query:")
                     st.code(sql_query, language="sql")
-                    
-                    # Add a copy button
-                    st.button(
-                        "Copy SQL",
-                        on_click=lambda: st.write(
-                            f'<script>navigator.clipboard.writeText("{sql_query}")</script>',
-                            unsafe_allow_html=True
-                        )
-                    )
                     
                     # Add to history
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
