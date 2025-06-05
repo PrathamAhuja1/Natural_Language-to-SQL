@@ -20,7 +20,6 @@ from src.helper import (
 
 from dotenv import load_dotenv
 
-# Ensure compatibility with multiprocessing
 if __name__ == "__main__":
     logger = get_logger(__name__)
 
@@ -35,7 +34,6 @@ if __name__ == "__main__":
             self.hf_token = os.getenv("HUGGINGFACE_TOKEN")
             os.makedirs(self.output_dir, exist_ok=True)
 
-            # Prefer BF16 if supported, otherwise FP16
             if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
                 self.torch_dtype = torch.bfloat16
             else:
@@ -46,13 +44,11 @@ if __name__ == "__main__":
         def _setup_model(self):
             """Set up T5-Large with LoRA for fine-tuning."""
             try:
-                # Initialize the tokenizer
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.model_name,
                     use_auth_token=self.hf_token
                 )
 
-                # Load T5-Large model on the current GPU
                 device_map = {"": torch.cuda.current_device()}
                 self.model = T5ForConditionalGeneration.from_pretrained(
                     self.model_name,
@@ -61,10 +57,8 @@ if __name__ == "__main__":
                     device_map=device_map
                 )
 
-                # Enable gradient checkpointing to reduce memory footprint
                 self.model.gradient_checkpointing_enable()
 
-                # Set up LoRA for efficient fine-tuning
                 self.lora_config = LoraConfig(
                     r=8,
                     lora_alpha=16,
@@ -88,16 +82,12 @@ if __name__ == "__main__":
                 dataset = dataset['train'].train_test_split(test_size=0.1)
 
                 def format_example(example):
-                    # Validate SQL structure
                     valid, _ = validate_sql(example['sql_query'])
                     if not valid:
                         return None
-                    # Preprocess natural language and SQL query
                     nl = preprocess_query(example['natural_language'])
                     sql = clean_sql_output(example['sql_query'])
-                    # For T5, the input prompt is "translate English to SQL: <natural language>"
                     prompt = format_t5_prompt(nl)
-                    # Tokenize the input prompt
                     input_encodings = self.tokenizer(
                         prompt,
                         max_length=self.max_length,
@@ -130,7 +120,6 @@ if __name__ == "__main__":
                             processed_examples.append(result)
                     if not processed_examples:
                         raise ValueError(f"No valid examples found in the {split} set.")
-                    # Convert list of dictionaries to a dataset dict
                     processed_dataset[split] = {key: [ex[key] for ex in processed_examples]
                                                  for key in processed_examples[0].keys()}
                     processed_dataset[split] = dataset[split].from_dict(processed_dataset[split])
@@ -146,28 +135,28 @@ if __name__ == "__main__":
                 torch.backends.cudnn.benchmark = True
                 training_args = TrainingArguments(
                     output_dir=self.output_dir,
-                    per_device_train_batch_size=4,  # Increase if memory allows
+                    per_device_train_batch_size=4, 
                     per_device_eval_batch_size=4,
-                    num_train_epochs=5,  # Ensure the model has enough epochs to converge
-                    learning_rate=5e-5,  # Experiment with different learning rates
-                    gradient_accumulation_steps=4,  # Adjust based on memory constraints
+                    num_train_epochs=5,  
+                    learning_rate=5e-5,
+                    gradient_accumulation_steps=4, 
                     bf16=(self.torch_dtype == torch.bfloat16),
                     fp16=(self.torch_dtype == torch.float16),
                     optim="adamw_torch",
-                    logging_steps=200,  # Reduce logging frequency
-                    evaluation_strategy="steps",
-                    eval_steps=1000,  # Evaluate less frequently
+                    logging_steps=200, 
+                    eval_strategy="steps",
+                    eval_steps=1000,
                     save_strategy="steps",
-                    save_steps=1000,  # Save less frequently
+                    save_steps=1000, 
                     report_to="tensorboard",
                     remove_unused_columns=False,
                     gradient_checkpointing=True,
-                    max_grad_norm=1.0,  # Experiment with different gradient clipping values
-                    warmup_ratio=0.1,  # Increase warmup ratio for better convergence
-                    dataloader_num_workers=0,  # Temporarily set to 0 to debug
+                    max_grad_norm=1.0,  
+                    warmup_ratio=0.1, 
+                    dataloader_num_workers=0, 
                     load_best_model_at_end=True,
                     metric_for_best_model="eval_loss",
-                    lr_scheduler_type="linear"  # Use a learning rate scheduler
+                    lr_scheduler_type="linear"  
                 )
                 data_collator = DataCollatorForSeq2Seq(self.tokenizer, model=self.model)
                 trainer = Trainer(
