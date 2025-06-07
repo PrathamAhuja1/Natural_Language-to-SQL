@@ -11,23 +11,31 @@ log_dir = "logs"
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
-# Configure logging to output to a file in the logs folder
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     filename=os.path.join(log_dir, "app.log"),
-    filemode='a'  # Append mode
+    filemode='a'
 )
 logger = logging.getLogger(__name__)
 
-def format_t5_prompt(natural_language: str, sql_query: Optional[str] = None) -> str:
-    """
-    Format prompt for T5 model fine-tuning for Text-to-SQL conversion.
-    The input is prefixed with:
-        "translate English to SQL: <natural_language>"
-    During training, the model is expected to generate the SQL query as output.
-    """
-    return f"translate English to SQL: {natural_language.strip()}"
+def format_t5_prompt(query):
+    """Format natural language query with flexible prompt templates for T5"""
+
+    prompts = [
+        f"translate English to SQL: {query}",
+        f"convert to sql: {query}",
+        f"sql query: {query}",
+        f"generate sql: {query}",
+        f"transform to sql: {query}",
+        f"create sql: {query}",
+        query
+    ]
+
+    return f"translate English to SQL: {query}"
+
+
 
 class DatabaseManager:
     def __init__(self, db_path: str):

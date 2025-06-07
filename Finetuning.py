@@ -138,7 +138,7 @@ if __name__ == "__main__":
                     per_device_train_batch_size=4, 
                     per_device_eval_batch_size=4,
                     num_train_epochs=5,  
-                    learning_rate=5e-5,
+                    learning_rate=3e-4,
                     gradient_accumulation_steps=4, 
                     bf16=(self.torch_dtype == torch.bfloat16),
                     fp16=(self.torch_dtype == torch.float16),

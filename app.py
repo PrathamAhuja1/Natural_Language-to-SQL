@@ -9,8 +9,6 @@ class SQLConverter:
         self.model_name = "t5-large"
         self.max_length = 256
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        # Load the tokenizer and model
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.model = T5ForConditionalGeneration.from_pretrained("final_model")
         self.model.to(self.device)
@@ -18,11 +16,9 @@ class SQLConverter:
 
     def convert_to_sql(self, natural_query: str) -> str:
         try:
-            # Preprocess the query and format it for T5
             processed_query = preprocess_query(natural_query)
             input_text = format_t5_prompt(processed_query)
             
-            # Tokenize input
             inputs = self.tokenizer(
                 input_text,
                 max_length=self.max_length,
@@ -31,21 +27,22 @@ class SQLConverter:
                 return_tensors="pt"
             )
             
-            # Move input tensors to the same device as model
             input_ids = inputs["input_ids"].to(self.device)
             attention_mask = inputs["attention_mask"].to(self.device)
             
-            # Generate SQL query
+
             with torch.no_grad():
                 outputs = self.model.generate(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    max_length=self.max_length,
-                    num_beams=5,
-                    early_stopping=True
-                )
-            
-            # Decode the generated SQL
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        max_length=self.max_length,
+                        num_beams=8,  
+                        temperature=0.3,  
+                        do_sample=False, 
+                        early_stopping=True,
+                        repetition_penalty=1.1
+                    )
+
             sql_query = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             return clean_sql_output(sql_query)
             
@@ -55,11 +52,9 @@ class SQLConverter:
 def main():
     st.set_page_config(page_title="Natural Language to SQL Converter", page_icon="🔄")
     
-    # Initialize session state for history if it doesn't exist
     if 'history' not in st.session_state:
         st.session_state.history = []
-    
-    # Sidebar for history
+  
     with st.sidebar:
         st.title("Query History")
         if not st.session_state.history:
@@ -73,35 +68,29 @@ def main():
                     st.write("SQL Query:")
                     st.code(sql, language="sql")
     
-    # Main content
     st.title("Natural Language to SQL Converter")
     st.write("Convert your natural language questions into SQL queries!")
-    
-    # Initialize the converter
+
     @st.cache_resource
     def load_converter():
         return SQLConverter()
     
     converter = load_converter()
-    
-    # Input text area for natural language query
+
     natural_query = st.text_area(
         "Enter your question:",
         height=100
     )
-    
-    # Convert button
+
     if st.button("Convert to SQL"):
         if natural_query:
             with st.spinner("Converting your query..."):
                 try:
                     sql_query = converter.convert_to_sql(natural_query)
-                    
-                    # Display the result
+
                     st.subheader("Generated SQL Query:")
                     st.code(sql_query, language="sql")
-                    
-                    # Add to history
+
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     st.session_state.history.append((timestamp, natural_query, sql_query))
                     

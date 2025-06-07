@@ -1,4 +1,3 @@
-torch
 transformers
 bitsandbytes
 accelerate
@@ -8,3 +7,7 @@ python-dotenv
 -e .
 tensorboard
 tensorflow
+streamlit
+Faker
+tf-keras
+hf_xet
