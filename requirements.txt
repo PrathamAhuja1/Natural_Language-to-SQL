@@ -9,5 +9,3 @@ tensorboard
 tensorflow
 streamlit
 Faker
-tf-keras
-hf_xet

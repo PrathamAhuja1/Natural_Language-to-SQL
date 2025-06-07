@@ -1,3 +1,4 @@
+#streamlit run app.py --server.fileWatcherType none
 import streamlit as st
 import torch
 from transformers import T5ForConditionalGeneration, AutoTokenizer
