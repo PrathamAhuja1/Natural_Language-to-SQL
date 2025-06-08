@@ -5,8 +5,8 @@ peft
 datasets 
 python-dotenv
 -e .
-tensorboard
-tensorflow
+#tensorboard
+#tensorflow
 streamlit
 Faker
 nest_asyncio
