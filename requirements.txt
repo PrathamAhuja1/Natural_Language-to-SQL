@@ -9,3 +9,4 @@ tensorboard
 tensorflow
 streamlit
 Faker
+nest_asyncio

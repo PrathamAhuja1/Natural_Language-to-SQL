@@ -4,6 +4,11 @@ import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from src.helper import preprocess_query, clean_sql_output, format_t5_prompt
 from datetime import datetime
+import asyncio
+import nest_asyncio
+import platform
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 class SQLConverter:
     def __init__(self):
@@ -101,4 +106,9 @@ def main():
             st.warning("Please enter a question first!")
 
 if __name__ == "__main__":
+    try:
+        asyncio.get_running_loop()
+        nest_asyncio.apply()
+    except RuntimeError:
+        pass
     main()
