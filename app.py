@@ -91,9 +91,6 @@ def main():
     st.title("Natural Language to SQL Converter")
     st.write("Convert your natural language questions into SQL queries!")
 
-    # Load (or cache) the converter
-    converter = load_converter()
-
     natural_query = st.text_area(
         "Enter your question:",
         height=100
@@ -101,14 +98,16 @@ def main():
 
     if st.button("Convert to SQL"):
         if natural_query:
-            with st.spinner("Converting your query..."):
+            # Load converter only upon user action to avoid startup delays
+            with st.spinner("Loading model and converting your query..."):
+                converter = load_converter()
                 sql_query = converter.convert_to_sql(natural_query)
 
-                st.subheader("Generated SQL Query:")
-                st.code(sql_query, language="sql")
+            st.subheader("Generated SQL Query:")
+            st.code(sql_query, language="sql")
 
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                st.session_state.history.append((timestamp, natural_query, sql_query))
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.history.append((timestamp, natural_query, sql_query))
         else:
             st.warning("Please enter a question first!")
 
