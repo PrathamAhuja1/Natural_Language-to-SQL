@@ -16,7 +16,7 @@ class SQLConverter:
         self.max_length = 256
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained("final_model")
+        self.model = AutoModelForSeq2SeqLM.from_pretrained("PrathamAhuja1/final_model")
         self.model.to(self.device)
         self.model.eval()
 
