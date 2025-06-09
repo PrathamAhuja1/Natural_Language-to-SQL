@@ -1,7 +1,7 @@
 #streamlit run app.py --server.fileWatcherType none
 import streamlit as st
 import torch
-from transformers import T5ForConditionalGeneration, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from src.helper import preprocess_query, clean_sql_output, format_t5_prompt
 from datetime import datetime
 import asyncio
@@ -16,7 +16,7 @@ class SQLConverter:
         self.max_length = 256
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = T5ForConditionalGeneration.from_pretrained("PrathamAhuja1/final_model")
+        self.model = AutoModelForSeq2SeqLM.from_pretrained("PrathamAhuja1/final_model")
         self.model.to(self.device)
         self.model.eval()
 
