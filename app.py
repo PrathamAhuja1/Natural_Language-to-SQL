@@ -42,8 +42,7 @@ class SQLConverter:
                         input_ids=input_ids,
                         attention_mask=attention_mask,
                         max_length=self.max_length,
-                        num_beams=8,  
-                        temperature=0.3,  
+                        num_beams=8,
                         do_sample=False, 
                         early_stopping=True,
                         repetition_penalty=1.1
